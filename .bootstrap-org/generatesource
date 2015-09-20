@@ -1,0 +1,193 @@
+#! /bin/bash
+
+projectName="__projectName__"
+description="__description__"
+headerSubDir="__headerSubDir__"
+copyRightHolder="__copyRightHolder__"
+copyRightYear="__copyRightYear__"
+emailAddress="__emailAddress__"
+contantsPrefix="__constantsPrefix__"
+nameSpace="__nameSpace__"
+sourceRepository="__sourceRepository__"
+sourceTemplatesDirectory="sourcetemplates"
+headerExtension="__headerExtension__"
+sourceExtension="__sourceExtension__"
+
+printSynopsis() {
+	if test -n "$1"
+	then
+		echo "ERROR:\n\t$1"
+	fi
+	echo "SYNOPSIS"
+	echo "  `basename $0` fileBaseName fileExtension..."
+	echo "  fileBaseName and fileExtension form the new file name(s) based"
+	echo "  on the following patten:"
+	echo "    ./include/${headerSubDir}/fileBaseName.fileExtension"
+}
+
+# Determine if the value in $1 matches the regular expression in $2.
+# Echoes the valid value and returns nonzero otherwise
+# If provided, $3 is used in the description for the error message.
+validRegExp()
+{
+	if [[ "x" == "x$1" ]]
+	then
+		echo "validRegExp(): Missing value" >&2
+	elif [[ "x" == "x$2" ]]
+	then
+		echo "validRegExp(): Missing expression" >&2
+	elif [[ $1 =~ $2 ]]
+	then
+		return 0
+	fi
+
+	if [[ "x" == "x$3" ]]
+	then
+		echo "validRegExp(): Value '$1' does not match the expression '$2'" >&2
+	else
+		echo "validRegExp(): Value for $3, '$1', does not match the expression '$2'" >&2
+	fi
+
+	return 1
+}
+
+if [[ "x$1" =~ x(-h|--help) ]]
+then
+	printSynopsis
+	exit 0
+fi
+
+if ! test -n "$2"
+then
+	printSynopsis "Missing argument(s)" >&2
+	exit 1
+fi
+
+if ! validRegExp "$1" '^[[:alpha:]][[:alnum:]]+$' "file base-name"
+then
+	printSynopsis "Invalid file base-name: $1"
+	exit 1
+fi
+
+fileBaseName="$1"
+shift
+fileExtensions=
+
+while [[ "x" != "x$1" ]]
+do
+	extension="$1"
+	shift
+	if [[ "$extension" == "$sourceExtension" ]]
+	then
+		fileExtensions="$fileExtensions $extension"
+	elif [[ "$extension" == "$headerExtension" ]]
+	then
+		fileExtensions="$fileExtensions $extension"
+	else
+		printSynopsis "Invalid file extension: $extension"
+		exit 1
+	fi
+done
+
+echo "Creating source files based on '$fileBaseName' using extensions $fileExtensions"
+
+headerGuard=`echo "${contantsPrefix}_${fileBaseName}_HEADER_GUARD" | sed -r s/"\\-"/"_"/g | tr '[:lower:]' '[:upper:]'`
+
+currentYear=`date +"%Y"`
+
+if ! test "${currentYear}" = "${copyRightYear}"
+then
+	copyRightYear="${copyRightYear}-${currentYear}"
+fi
+
+copyRightNotice="Copyright (C) ${copyRightYear} ${copyRightHolder}."
+
+echo "Generating files from templates with"
+echo " Copyright = ${copyRightNotice}"
+echo " Contact   = ${emailAddress}"
+echo " Guard     = ${headerGuard}"
+
+replaceExpression()
+{
+	r1='s/\\/\\\\/g'
+	r2='s/\//\\\//g'
+	variableToSubstitute="$1"
+	substituteValue=`echo "$2" | sed -r "$r1" | sed -r "$r2" `
+
+	expr="s/__${variableToSubstitute}__/$substituteValue/g"
+
+	#echo "$expr" >&2
+	echo "$expr"
+}
+
+projectNameExpr=`replaceExpression "templateProjectName" "$projectName"`
+descriptionExpr=`replaceExpression "templateProjectDescription" "$description"`
+headerSubDirExpr=`replaceExpression "templateProjectHeaderSubDir" "$headerSubDir"`
+copyRightHolderExpr=`replaceExpression "templateCopyProjectRightHolder" "$copyRightHolder"`
+copyRightYearExpr=`replaceExpression "templateProjectCopyRightYear" "$copyRightYear"`
+emailAddressExpr=`replaceExpression "templateProjectEmailAddress" "$emailAddress"`
+contantsPrefixExpr=`replaceExpression "templateProjectConstantsPrefix" "$constantsPrefix"`
+nameSpaceExpr=`replaceExpression "templateProjectNameSpace" "$nameSpace"`
+sourceRepositoryExpr=`replaceExpression "templateProjectSourceRepository" "$sourceRepository"`
+copyRightNoticeExpr=`replaceExpression "templateCopyRightNotice" "$copyRightNotice"`
+headerGuardNameExpr=`replaceExpression "templateHeaderGuard" "$headerGuard"`
+headerExtensionExpr=`replaceExpression "headerExtension" "$headerExtension"`
+sourceExtensionExpr=`replaceExpression "sourceExtension" "$sourceExtension"`
+
+
+headerDirectory="./include/$headerSubDir"
+sourceDirectory="./src"
+headerFileName="$fileBaseName.$headerExtension"
+sourceFileName="$fileBaseName.$sourceExtension"
+includeName="$headerSubDir/$headerFileName"
+
+
+for fileExtension in $fileExtensions
+do
+	if [[ "$fileExtension" == "$headerExtension" ]]
+	then
+		targetDirectory="$headerDirectory"
+		targetFileName="$headerFileName"
+		sourceFile="$sourceTemplatesDirectory/header.hpp"
+	else
+		targetDirectory="$sourceDirectory"
+		targetFileName="$sourceFileName"
+		sourceFile="$sourceTemplatesDirectory/source.cpp"
+	fi
+	targetFilePath="$targetDirectory/$targetFileName"
+
+	if test -f "$targetFilePath"
+	then
+		echo "Skipped generation of already existing file: $targetFilePath"
+		continue
+	fi
+
+	if ! mkdir -p "$targetDirectory"
+	then
+		echo "Could not create target directory '$targetDirectory'"
+		exit 1
+	fi
+
+	sourceFileNameExpr=`replaceExpression "templateFileName" "$targetFileName"`
+	headerFileNameExpr=`replaceExpression "templateInclude" "$includeName"`
+
+	echo "Generate: ${sourceFile} -> ${targetFilePath}"
+
+	cat "${sourceFile}" |\
+					sed -r "$projectNameExpr" |\
+					sed -r "$descriptionExpr" |\
+					sed -r "$headerSubDirExpr" |\
+					sed -r "$copyRightHolderExpr" |\
+					sed -r "$copyRightYearExpr" |\
+					sed -r "$emailAddressExpr" |\
+					sed -r "$contantsPrefixExpr" |\
+					sed -r "$nameSpaceExpr" |\
+					sed -r "$sourceRepositoryExpr" |\
+					sed -r "$copyRightNoticeExpr" |\
+					sed -r "$headerGuardNameExpr" |\
+					sed -r "$sourceExtensionExpr" |\
+					sed -r "$headerExtensionExpr" |\
+					sed -r "$sourceFileNameExpr" |\
+					sed -r "$headerFileNameExpr" \
+					> "$targetFilePath"
+done

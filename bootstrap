@@ -1,0 +1,375 @@
+#!/bin/bash
+
+REGEXP_FOR_PROJECT_NAME='^[[:alpha:]]([[:alnum:]]|-|_|\.)+[[:alnum:]]$'
+REGEXP_FOR_HEADER_SUBDIR='^[[:alpha:]]([[:alnum:]]|_|)+[[:alnum:]]$'
+REGEXP_FOR_DESCRIPTION='^[[:alnum:]]([[:alnum:]]| |\t|-|\.|,|;|:|@|/|!)+$'
+REGEXP_FOR_COPYRIGHT="$REGEXP_FOR_DESCRIPTION"
+REGEXP_FOR_EMAIL="$REGEXP_FOR_DESCRIPTION"
+REGEXP_FOR_SOURCE="$REGEXP_FOR_DESCRIPTION"
+REGEXP_FOR_YEAR='^[[:digit:]]{4}$'
+REGEXP_FOR_EXTENSIONS='^[[:alnum:]]([[:alnum:]]|-|\+)+$'
+
+BOOTSTRAP_SOURCE=".bootstrap-org"
+
+getAbsolutePath()
+{
+	pushd . > /dev/null
+
+	selfPath="$1"
+
+	while [[ -h "${selfPath}" ]]
+	do
+		selfDirectory=`dirname "$selfPath"`
+		selfBaseName=`basename "$selfPath"`
+
+		cd "$selfDirectory"
+		selfPath=`readlink "$selfBaseName"`
+	done
+	selfDirectory=`dirname "$selfPath"`
+	selfBaseName=`basename "$selfPath"`
+
+	cd "$selfDirectory" > /dev/null
+	selfDirectory=`pwd`
+
+	echo "$selfDirectory/$selfBaseName"
+}
+
+SCRIPT_LOCATION=`getAbsolutePath $0`
+SCRIPT_NAME=`basename "$SCRIPT_LOCATION"`
+SCRIPT_DIR=`dirname "$SCRIPT_LOCATION"`
+
+printSynopsis()
+{
+	echo "SYNOPSIS"
+	echo "  Bootstrap generates a autotools shared library project for you."
+	echo "USAGE"
+	echo "  `basename $SCRIPT_LOCATION` arguments"
+	echo "Mandatory arguments"
+	echo "  -p|--project-name      projectName       Name of the project"
+	echo "  -d|--description       description       Short description of the project"
+	echo "  -c|--copyright-holder  copyRightHolder   The copyright holder"
+	echo "  -e|--email             email             Contact email (or other way to contact)"
+	echo "  -h|--header-subdir     headerSubDir      Header sub-directory (under header install directory)"
+	echo "  -s|--source-repository uri               Source repository"
+	echo "Optional arguments"
+	echo "  -y|--year              year              Year of copyright (current year)"
+	echo "  --header-extension     extension         File extension for header files (hpp)"
+	echo "  --source-extension     extension         File extension for source files (cpp)"
+}
+
+printSynopsisAndExit()
+{
+	if [[ "x" == "x$1" ]]
+	then
+		printSynopsis >&2
+		exit 1
+	elif [[ "$1" =~ -h|--help ]]
+	then
+		printSynopsis
+		exit 0
+	else
+		echo "ERROR: $1" >&2
+		printSynopsis >&2
+		exit 1
+	fi
+}
+
+exitWithMessage()
+{
+	popd >/dev/null
+	echo "Error: $1" >&2
+	exit 1
+}
+
+# Determine if the value in $1 matches the regular expression in $2.
+# Echoes the valid value and returns nonzero otherwise
+# If provided, $3 is used in the description for the error message.
+validRegExp()
+{
+	if [[ "x" == "x$1" ]]
+	then
+		echo "validRegExp(): Missing value" >&2
+	elif [[ "x" == "x$2" ]]
+	then
+		echo "validRegExp(): Missing expression" >&2
+	elif [[ $1 =~ $2 ]]
+	then
+		echo $1
+		return 0
+	fi
+
+	if [[ "x" == "x$3" ]]
+	then
+		echo "validRegExp(): Value '$1' does not match the expression '$2'" >&2
+	else
+		echo "validRegExp(): Value for $3, '$1', does not match the expression '$2'" >&2
+	fi
+
+	return 1
+}
+
+replaceExpression()
+{
+	r1='s/\\/\\\\/g'
+	r2='s/\//\\\//g'
+	variableToSubstitute="$1"
+	substituteValue=`echo "$2" | sed -r "$r1" | sed -r "$r2" `
+
+	expr="s/__${variableToSubstitute}__/$substituteValue/g"
+
+	echo "$expr" >&2
+	echo "$expr"
+}
+
+
+# Initialize variables (mandatory start empty)
+
+projectName=
+headerSubDir=
+description=
+sourceRepository=
+copyRightHolder=
+copyRightYear=`date +"%Y"`
+emailAddress=
+sourceExtension="cpp"
+headerExtension="hpp"
+
+# Parse the command line
+
+argument=
+variable=
+matchExpression=
+
+
+while [[ "x" != "x$1" ]]
+do
+	argument="$1"
+	shift
+	if [[ "x" != "x$variable" ]]
+	then
+		if [[ "x" != "x$matchExpression" ]]
+		then
+			if ! validRegExp "$argument" "$matchExpression" "$variable" >/dev/null
+			then
+				printSynopsisAndExit "Invalid argument"
+			fi
+		fi
+		expression="$variable=\"$argument\""
+		if ! eval "$expression"
+		then
+			printSynopsisAndExit "Could not evaluate argument assignment: $expression"
+		fi
+		variable=
+		matchExpression=
+	else
+		case "$argument" in
+		-p|--project-name)
+			variable="projectName"
+			matchExpression="$REGEXP_FOR_PROJECT_NAME"
+			;;
+
+		-d|--description)
+			variable="description"
+			matchExpression="$REGEXP_FOR_DESCRIPTION"
+			;;
+
+		-h|--header-subdir)
+			variable="headerSubDir"
+			matchExpression="$REGEXP_FOR_HEADER_SUBDIR"
+			;;
+
+		-c|--copyright)
+			variable="copyRightHolder"
+			matchExpression="$REGEXP_FOR_COPYRIGHT"
+			;;
+
+		-y|--year)
+			variable="copyRightYear"
+			matchExpression="$REGEXP_FOR_YEAR"
+			;;
+
+		-e|--email)
+			variable="emailAddress"
+			matchExpression="$REGEXP_FOR_EMAIL"
+			;;
+
+		-s|--source-repository)
+			variable="sourceRepository"
+			matchExpression="$REGEXP_FOR_SOURCE"
+			;;
+
+		--header-extension)
+			variable="headerExtension"
+			matchExpression="$REGEXP_FOR_EXTENSIONS"
+			;;
+
+		--source-extension)
+			variable="sourceExtension"
+			matchExpression="$REGEXP_FOR_EXTENSIONS"
+			;;
+
+		*)
+			echo "VAR=$variable"
+			printSynopsisAndExit "Unknown argument '$arg'"
+			;;
+		esac
+	fi
+done
+
+# Check if an argument is missing a value
+
+if test "x" != "x$variable"
+then
+	printSynopsisAndExit "Expecting value for argument: $variable ($argument)"
+fi
+
+# Check missing arguments
+
+if [[ "x" == "x$projectName" ]]
+then
+	printSynopsisAndExit "Missing project name"
+fi
+if [[ "x" == "x$description" ]]
+then
+	printSynopsisAndExit "Missing description"
+fi
+if [[ "x" == "x$headerSubDir" ]]
+then
+	printSynopsisAndExit "Missing header sub-directory"
+fi
+if [[ "x" == "x$copyRightHolder" ]]
+then
+	printSynopsisAndExit "Missing copyright holder"
+fi
+if [[ "x" == "x$emailAddress" ]]
+then
+	printSynopsisAndExit "Missing email"
+fi
+if [[ "x" == "x$sourceRepository" ]]
+then
+	printSynopsisAndExit "Missing source repository location"
+fi
+if [[ "$sourceExtension" == "$headerExtension" ]]
+then
+	printSynopsisAndExit "Source and header extension cannot be same: $sourceExtension"
+fi
+
+# Create generated arguments
+
+constantsPrefix=`echo "$projectName" | tr '[:lower:]' '[:upper:]' | tr '.' '_' | tr '-' '_'`
+r1='s/\\/\\\\/g'
+r2='s/\//\\\//g'
+nameSpace=`echo "$constantsPrefix" | tr '[:upper:]' '[:lower:]'`
+
+projectNameExpr=`replaceExpression "projectName" "$projectName"`
+headerSubDirExpr=`replaceExpression "headerSubDir" "$headerSubDir"`
+copyRightHolderExpr=`replaceExpression "copyRightHolder" "$copyRightHolder"`
+copyRightYearExpr=`replaceExpression "copyRightYear" "$copyRightYear"`
+emailAddressExpr=`replaceExpression "emailAddress" "$emailAddress"`
+constantsPrefixExpr=`replaceExpression "constantsPrefix" "$constantsPrefix"`
+descriptionExpr=`replaceExpression "description" "$description"`
+sourceRepositoryExpr=`replaceExpression "sourceRepository" "$sourceRepository"`
+nameSpaceExpr=`replaceExpression "nameSpace" "$nameSpace"`
+headerExtensionExpr=`replaceExpression "headerExtension" "$headerExtension"`
+sourceExtensionExpr=`replaceExpression "sourceExtension" "$sourceExtension"`
+
+
+echo "projectName            = $projectName"
+echo "description            = $description"
+echo "headerSubDir           = $headerSubDir"
+echo "copyRightHolder        = $copyRightHolder"
+echo "copyRightYear          = $copyRightYear"
+echo "emailAddress           = $emailAddress"
+echo "sourceRepository       = $sourceRepository"
+echo "constantsPrefix        = $constantsPrefix"
+echo "nameSpace              = $nameSpace"
+
+PROJECT_OUTPUT="$projectName"
+
+substituteVariables()
+{
+	cat "$1" |\
+		sed -r "$projectNameExpr" |\
+		sed -r "$descriptionExpr" |\
+		sed -r "$headerSubDirExpr" |\
+		sed -r "$copyRightHolderExpr" |\
+		sed -r "$copyRightYearExpr" |\
+		sed -r "$emailAddressExpr" |\
+		sed -r "$constantsPrefixExpr" |\
+		sed -r "$nameSpaceExpr" |\
+		sed -r "$sourceExtensionExpr" |\
+		sed -r "$headerExtensionExpr" |\
+		sed -r "$sourceRepositoryExpr"
+}
+
+copySubstitute()
+{
+	inputBase=`basename "$1"`
+	inputDir=`dirname "$1"`
+	inputDir=`echo "$inputDir" | sed -r 's/^(\.\/|\.)//'`
+
+	if [[ "x" != "x$inputDir" ]]
+	then
+		outputDir="$PROJECT_OUTPUT/$inputDir"
+		inputDir="$BOOTSTRAP_SOURCE/$inputDir"
+		if ! mkdir -p "$outputDir"
+		then
+			exitWithMessage "Cannot create directory '$outputDir'"
+		fi
+	elif [[ "$inputBase" == "$SCRIPT_NAME" ]]
+	then
+		echo "Skip overwrite of this script"
+		return 0
+	else
+		inputDir="$BOOTSTRAP_SOURCE"
+		outputDir="$PROJECT_OUTPUT"
+	fi
+
+	inputFile="$inputDir/$inputBase"
+	outputFile="$outputDir/$inputBase"
+
+	if ! test -f "$inputFile"
+	then
+		return 0
+	fi
+
+	echo "Substitute '$inputFile' to '$outputFile'"
+
+	substituteVariables "$inputFile" >"$outputFile"
+}
+
+pushd `pwd` >/dev/null
+
+cd `dirname $SCRIPT_LOCATION`
+
+if ! test -d "$BOOTSTRAP_SOURCE"
+then
+	exitWithMessage "Have no original (source) directory: $BOOTSTRAP_SOURCE"
+fi
+
+if ! mkdir -p "$PROJECT_OUTPUT"
+then
+	exitWithMessage "Not able to create temporary output directory: $PROJECT_OUTPUT"
+fi
+
+
+pushd "$BOOTSTRAP_SOURCE" >/dev/null
+
+substScript="$SCRIPT_DIR/.substitutions"
+
+find . |\
+	sed -r 's/^(.*)$/copySubstitute "\1"/' >"$substScript"
+
+popd >/dev/null
+
+
+
+if . "$substScript"
+then
+	chmod u+x "${PROJECT_OUTPUT}/init-autotools"
+	chmod u+x "${PROJECT_OUTPUT}/generatesource"
+fi
+
+
+popd >/dev/null
+exit 0

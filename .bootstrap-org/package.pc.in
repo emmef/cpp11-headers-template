@@ -1,0 +1,13 @@
+# Package config (pkg-config) information file
+prefix=@prefix@
+exec_prefix=@prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: __projectName__
+Description: __projectDescription__
+URL: __sourceRepository__
+Version: @VERSION@
+Requires: 
+Libs:
+Cflags:
