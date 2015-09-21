@@ -2,4 +2,5 @@
 libtoolize
 aclocal
 autoreconf -vi
+automake --add-missing
 
