@@ -4,7 +4,7 @@ AM_CXXFLAGS=-Wall
 noinst_PROGRAMS = sanitychecks
 sanitychecks_SOURCES = \
 	Main.cpp
-# __AUTO_ADD_SOURCES__HERE__
+# __AUTO_ADD_SOURCES_HERE__
 # Do not remove or move previous line as it will break the
 # automatic adding of source files.
 	
