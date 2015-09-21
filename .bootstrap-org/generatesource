@@ -21,11 +21,15 @@ printSynopsis() {
 		echo "ERROR:\n\t$1"
 	fi
 	echo "SYNOPSIS"
-	echo "  `basename $0` fileBaseName [-s|--source]"
+	echo "  `basename $0` fileBaseName [-ns|--no-source]"
 	echo "  The command will generate a header file"
 	echo "     fileBaseName.${headerExtension}"
-	echo "  and if -s or --source is given, also a source file"
+	echo "  and, if -ns or --no-source is NOT given, also a source file"
 	echo "     src/fileBaseName.${sourceExtension}"
+	echo "  It will add the source file to src/Makefile.am, so that "
+	echo "  it is at least verified whether the header compiles at all."
+	echo "  Naturally, actually add some sanity checking in the source"
+	echo "  file is recommended."
 }
 
 # Determine if the value in $1 matches the regular expression in $2.
@@ -62,20 +66,20 @@ fi
 
 if ! validRegExp "$1" "$REGEXP_BASE_NAME_WHOLE" "file base-name"
 then
-	printSynopsis "Invalid file base-name: $1"
+	printSynopsis "Invalid file base-name: $1" >&2
 	exit 1
 fi
 
 fileBaseName="$1"
 
-if [[ "x$2" =~ x(-s|--source) ]]
-then
-	fileExtensions="$headerExtension $sourceExtension"
-elif [[ "x$2" == "x" ]]
+if [[ "x$2" =~ x(-ns|--no-source) ]]
 then
 	fileExtensions="$headerExtension"
+elif [[ "x$2" == "x" ]]
+then
+	fileExtensions="$headerExtension $sourceExtension"
 else
-	echo "Invalid argument: $2"
+	printSynopsis "Invalid argument: $2" >&2
 	exit 1
 fi
 
