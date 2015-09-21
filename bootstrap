@@ -120,7 +120,6 @@ replaceExpression()
 
 	expr="s/__${variableToSubstitute}__/$substituteValue/g"
 
-	echo "$expr" >&2
 	echo "$expr"
 }
 
@@ -328,17 +327,15 @@ headerExtensionExpr=`replaceExpression "headerExtension" "$headerExtension"`
 sourceExtensionExpr=`replaceExpression "sourceExtension" "$sourceExtension"`
 
 
-echo "projectName            = $projectName"
-echo "description            = $description"
-echo "headerSubDir           = $headerSubDir"
-echo "copyRightHolder        = $copyRightHolder"
-echo "copyRightYear          = $copyRightYear"
-echo "emailAddress           = $emailAddress"
-echo "sourceRepository       = $sourceRepository"
-echo "constantsPrefix        = $constantsPrefix"
-echo "nameSpace              = $nameSpace"
-echo "targetParentDirectory  = $targetParentDirectory"
-
+echo "Project name         = $projectName"
+echo "Description          = $description"
+echo "Include subdirectory = $headerSubDir"
+echo "Copyright holder     = $copyRightHolder"
+echo "Year of copyright    = $copyRightYear"
+echo "Contact email        = $emailAddress"
+echo "Source code          = $sourceRepository"
+echo "C++ name space       = $nameSpace"
+echo "Project directory    = $PROJECT_OUTPUT"
 
 substituteVariables()
 {
