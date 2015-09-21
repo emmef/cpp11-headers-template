@@ -329,13 +329,15 @@ sourceExtensionExpr=`replaceExpression "sourceExtension" "$sourceExtension"`
 
 echo "Project name         = $projectName"
 echo "Description          = $description"
-echo "Include subdirectory = $headerSubDir"
 echo "Copyright holder     = $copyRightHolder"
 echo "Year of copyright    = $copyRightYear"
 echo "Contact email        = $emailAddress"
 echo "Source code          = $sourceRepository"
-echo "C++ name space       = $nameSpace"
 echo "Project directory    = $PROJECT_OUTPUT"
+echo "Include subdirectory = $headerSubDir"
+echo "C++ name space       = $nameSpace"
+echo "Header extension     = $headerExtension"
+echo "Source extension     = $sourceExtension"
 
 substituteVariables()
 {
