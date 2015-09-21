@@ -53,7 +53,9 @@ printSynopsis()
 	echo "  -h|--header-subdir     headerSubDir      Header sub-directory (under header install directory)"
 	echo "  -s|--source-repository uri               Source repository"
 	echo "Optional arguments"
+	echo "  -h|--help                                Print this synopsis"
 	echo "  -y|--year              year              Year of copyright (current year)"
+	echo "  -t|--target-parent-dir directory         Directory in which the project directory will be created"
 	echo "  --header-extension     extension         File extension for header files (hpp)"
 	echo "  --source-extension     extension         File extension for source files (cpp)"
 }
@@ -62,10 +64,9 @@ printSynopsisAndExit()
 {
 	if [[ "x" == "x$1" ]]
 	then
-		echo "????" >&2
 		printSynopsis >&2
 		exit 1
-	elif [[ "$1" =~ -h|--help ]]
+	elif [[ "$1" =~ ^(-h|--help) ]]
 	then
 		printSynopsis
 		exit 0
@@ -123,6 +124,10 @@ replaceExpression()
 	echo "$expr"
 }
 
+if [[ "x$1" =~ ^x(-h|--help)$ ]]
+then
+	printSynopsisAndExit --help
+fi
 
 # Initialize variables (mandatory start empty)
 
@@ -277,28 +282,28 @@ else
 
 	if [[ "$absoluteTargetPath" == "$SCRIPT_DIR" ]]
 	then
-		echo -e "Parent directory for target project cannot same as script-directory:\n\t$SCRIPT_DIR" >&2
-		exit 1
+		printSynopsisAndExit "Parent directory for target project cannot same as script-directory:\n\t$SCRIPT_DIR"
 	else
 		scriptPathLen="${#SCRIPT_DIR}"
 		shorted=${absoluteTargetPath:0:$scriptPathLen}
 		if [[ "$shorted" == "$SCRIPT_DIR" ]]
 		then
-			echo -e "Parent directory for target project cannot be sub-directory of script-directory: $absoluteTargetPath" >&2
-			exit 1
+			printSynopsisAndExit "Parent directory for target project cannot be sub-directory of script-directory: $absoluteTargetPath"
 		fi
 	fi
 
-	if [[ "$targetParentDirectory" =~ ^.*/$ ]]
+	PROJECT_OUTPUT="$absoluteTargetPath/$projectName"
+
+	if [[ -d "$PROJECT_OUTPUT" ]]
 	then
-		PROJECT_OUTPUT="$absoluteTargetPath$projectName"
-	else
-		PROJECT_OUTPUT="$absoluteTargetPath/$projectName"
+		printSynopsisAndExit "Target project directory already exists: $PROJECT_OUTPUT"
+		exit 1
 	fi
+
 
 	if ! mkdir -p "$PROJECT_OUTPUT"
 	then
-		echo -e "Cannot create target project directory: $PROJECT_OUTPUT" >&2
+		printSynopsisAndExit "Cannot create target project directory: $PROJECT_OUTPUT"
 		exit 1
 	fi
 fi
