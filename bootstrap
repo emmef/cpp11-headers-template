@@ -8,6 +8,7 @@ REGEXP_FOR_EMAIL="$REGEXP_FOR_DESCRIPTION"
 REGEXP_FOR_SOURCE="$REGEXP_FOR_DESCRIPTION"
 REGEXP_FOR_YEAR='^[[:digit:]]{4}$'
 REGEXP_FOR_EXTENSIONS='^[[:alnum:]]([[:alnum:]]|-|\+)+$'
+REGEXP_FOR_TARGET='^(\.\./|/).*'
 
 BOOTSTRAP_SOURCE=".bootstrap-org"
 
@@ -61,6 +62,7 @@ printSynopsisAndExit()
 {
 	if [[ "x" == "x$1" ]]
 	then
+		echo "????" >&2
 		printSynopsis >&2
 		exit 1
 	elif [[ "$1" =~ -h|--help ]]
@@ -68,7 +70,7 @@ printSynopsisAndExit()
 		printSynopsis
 		exit 0
 	else
-		echo "ERROR: $1" >&2
+		echo -e "ERROR: $1" >&2
 		printSynopsis >&2
 		exit 1
 	fi
@@ -133,6 +135,7 @@ copyRightYear=`date +"%Y"`
 emailAddress=
 sourceExtension="cpp"
 headerExtension="hpp"
+targetParentDirectory=".."
 
 # Parse the command line
 
@@ -198,6 +201,11 @@ do
 			matchExpression="$REGEXP_FOR_SOURCE"
 			;;
 
+		-t|--target-parent-dir)
+			variable="targetParentDirectory"
+			matchExpression="$REGEXP_FOR_TARGET"
+			;;
+
 		--header-extension)
 			variable="headerExtension"
 			matchExpression="$REGEXP_FOR_EXTENSIONS"
@@ -254,6 +262,47 @@ then
 	printSynopsisAndExit "Source and header extension cannot be same: $sourceExtension"
 fi
 
+if ! test -d "$targetParentDirectory"
+then
+	printSynopsisAndExit "Parent directory for target project is not a directory: $targetParentDirectory"
+else
+
+	pushd `pwd`
+	if ! cd "$targetParentDirectory"
+	then
+		printSynopsisAndExit "Cannot check (move to) parent directory for target project: $targetParentDirectory"
+	fi
+	absoluteTargetPath=`pwd`
+	popd
+
+	if [[ "$absoluteTargetPath" == "$SCRIPT_DIR" ]]
+	then
+		echo -e "Parent directory for target project cannot same as script-directory:\n\t$SCRIPT_DIR" >&2
+		exit 1
+	else
+		scriptPathLen="${#SCRIPT_DIR}"
+		shorted=${absoluteTargetPath:0:$scriptPathLen}
+		if [[ "$shorted" == "$SCRIPT_DIR" ]]
+		then
+			echo -e "Parent directory for target project cannot be sub-directory of script-directory: $absoluteTargetPath" >&2
+			exit 1
+		fi
+	fi
+
+	if [[ "$targetParentDirectory" =~ ^.*/$ ]]
+	then
+		PROJECT_OUTPUT="$absoluteTargetPath$projectName"
+	else
+		PROJECT_OUTPUT="$absoluteTargetPath/$projectName"
+	fi
+
+	if ! mkdir -p "$PROJECT_OUTPUT"
+	then
+		echo -e "Cannot create target project directory: $PROJECT_OUTPUT" >&2
+		exit 1
+	fi
+fi
+
 # Create generated arguments
 
 constantsPrefix=`echo "$projectName" | tr '[:lower:]' '[:upper:]' | tr '.' '_' | tr '-' '_'`
@@ -283,8 +332,8 @@ echo "emailAddress           = $emailAddress"
 echo "sourceRepository       = $sourceRepository"
 echo "constantsPrefix        = $constantsPrefix"
 echo "nameSpace              = $nameSpace"
+echo "targetParentDirectory  = $targetParentDirectory"
 
-PROJECT_OUTPUT="$projectName"
 
 substituteVariables()
 {
