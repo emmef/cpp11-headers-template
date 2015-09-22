@@ -12,7 +12,7 @@ sourceRepository="__sourceRepository__"
 sourceTemplatesDirectory="sourcetemplates"
 headerExtension="__headerExtension__"
 sourceExtension="__sourceExtension__"
-REGEXP_BASE_NAME='[[:alpha:]][[:alnum:]]+'
+REGEXP_BASE_NAME='[[:alpha:]]([[:alnum:]]|_)+'
 REGEXP_BASE_NAME_WHOLE="^$REGEXP_BASE_NAME\$"
 
 printSynopsis() {
@@ -21,15 +21,12 @@ printSynopsis() {
 		echo "ERROR:\n\t$1"
 	fi
 	echo "SYNOPSIS"
-	echo "  `basename $0` fileBaseName [-ns|--no-source]"
-	echo "  The command will generate a header file"
-	echo "     fileBaseName.${headerExtension}"
-	echo "  and, if -ns or --no-source is NOT given, also a source file"
-	echo "     src/fileBaseName.${sourceExtension}"
-	echo "  It will add the source file to src/Makefile.am, so that "
-	echo "  it is at least verified whether the header compiles at all."
-	echo "  Naturally, actually add some sanity checking in the source"
-	echo "  file is recommended."
+	echo "  `basename $0` fileBaseName [-nt|--no-test-suite]"
+	echo "The command will generate a header file"
+	echo "  fileBaseName.${headerExtension}"
+	echo "Unless prevented by passing -nt or --no-test-suite,"
+	echo "a test suite will be generated and included in the build"
+	echo "(but not the install)."
 }
 
 # Determine if the value in $1 matches the regular expression in $2.
@@ -71,19 +68,14 @@ then
 fi
 
 fileBaseName="$1"
+generateSources="YES"
 
-if [[ "x$2" =~ x(-ns|--no-source) ]]
+if [[ "x$2" =~ x(-nt|--no-test-suite) ]]
 then
-	fileExtensions="$headerExtension"
-elif [[ "x$2" == "x" ]]
-then
-	fileExtensions="$headerExtension $sourceExtension"
-else
-	printSynopsis "Invalid argument: $2" >&2
-	exit 1
+	generateSources=
 fi
 
-echo "Creating source files based on '$fileBaseName' using extensions $fileExtensions"
+echo "Creating source files based on '$fileBaseName'"
 
 headerGuard=`echo "${contantsPrefix}_${fileBaseName}_HEADER_GUARD" | sed -r s/"\\-"/"_"/g | tr '[:lower:]' '[:upper:]'`
 
@@ -108,92 +100,70 @@ replaceExpression()
 	variableToSubstitute="$1"
 	substituteValue=`echo "$2" | sed -r "$r1" | sed -r "$r2" `
 
-	if [[ "x$3" != "xNoUnderscores" ]]
-	then
-		expr="s/__${variableToSubstitute}__/$substituteValue/g"
-	else
-		expr="s/${variableToSubstitute}/$substituteValue/g"
-	fi
+	expr="s/${variableToSubstitute}/$substituteValue/g"
 
 	echo "$expr"
 }
 
-projectNameExpr=`replaceExpression "templateProjectName" "$projectName"`
-descriptionExpr=`replaceExpression "templateProjectDescription" "$description"`
-headerSubDirExpr=`replaceExpression "templateProjectHeaderSubDir" "$headerSubDir"`
-copyRightHolderExpr=`replaceExpression "templateCopyProjectRightHolder" "$copyRightHolder"`
-copyRightYearExpr=`replaceExpression "templateProjectCopyRightYear" "$copyRightYear"`
-emailAddressExpr=`replaceExpression "templateProjectEmailAddress" "$emailAddress"`
-contantsPrefixExpr=`replaceExpression "templateProjectConstantsPrefix" "$constantsPrefix"`
-nameSpaceExpr=`replaceExpression "templateProjectNameSpace" "$nameSpace"`
-sourceRepositoryExpr=`replaceExpression "templateProjectSourceRepository" "$sourceRepository"`
-copyRightNoticeExpr=`replaceExpression "templateCopyRightNotice" "$copyRightNotice"`
-headerGuardNameExpr=`replaceExpression "templateHeaderGuard" "$headerGuard"`
-headerExtensionExpr=`replaceExpression "headerExtension" "$headerExtension"`
-sourceExtensionExpr=`replaceExpression "sourceExtension" "$sourceExtension"`
-
 
 headerDirectory="./include/$headerSubDir"
-sourceDirectory="./src"
+sourceDirectory="./test"
 headerFileName="$fileBaseName.$headerExtension"
-sourceFileName="$fileBaseName.$sourceExtension"
 includeName="$headerSubDir/$headerFileName"
+className="$fileBaseName"
+if [[ "$fileBaseName" =~ ^[[:upper:]] ]]
+then
+	testClassName="Test$fileBaseName"
+else
+	testClassName="test_$fileBaseName"
+fi
+testHeaderFileName="$testClassName.$headerExtension"
+sourceFileName="$testClassName.$sourceExtension"
 
-sourceMakeFile="./src/Makefile.am"
-autAddComment="__AUTO_ADD_SOURCES_HERE__"
+projectNameExpr=`replaceExpression "__templateProjectName__" "$projectName"`
+descriptionExpr=`replaceExpression "__templateProjectDescription__" "$description"`
+headerSubDirExpr=`replaceExpression "__templateProjectHeaderSubDir__" "$headerSubDir"`
+copyRightHolderExpr=`replaceExpression "__templateCopyProjectRightHolder__" "$copyRightHolder"`
+copyRightYearExpr=`replaceExpression "__templateProjectCopyRightYear__" "$copyRightYear"`
+emailAddressExpr=`replaceExpression "__templateProjectEmailAddress__" "$emailAddress"`
+contantsPrefixExpr=`replaceExpression "__templateProjectConstantsPrefix__" "$constantsPrefix"`
+nameSpaceExpr=`replaceExpression "__templateProjectNameSpace__" "$nameSpace"`
+sourceRepositoryExpr=`replaceExpression "__templateProjectSourceRepository__" "$sourceRepository"`
+copyRightNoticeExpr=`replaceExpression "__templateCopyRightNotice__" "$copyRightNotice"`
+headerGuardNameExpr=`replaceExpression "__templateHeaderGuard__" "$headerGuard"`
+headerExtensionExpr=`replaceExpression "hpp" "$headerExtension"`
+sourceExtensionExpr=`replaceExpression "cpp" "$sourceExtension"`
+classNameNameExpr=`replaceExpression "__templateClass__" "$className"`
+testClassNameExpr=`replaceExpression "__templateTestClass__" "$testClassName"`
+sourceFileNameExpr=`replaceExpression "__templateSourceFile__" "$sourceFileName"`
+headerFileNameExpr=`replaceExpression "__templateIncludeFile__" "$includeName"`
+testHeaderFileNameExpr=`replaceExpression "__templateTestIncludeFile__" "$testHeaderFileName"`
 
-getLastSourceFile()
+autoAddComment='[[:space:]]*#[[:space:]]*__AUTO_ADD_SOURCES_HERE__.*'
+newLineAndComment='\n\0'
+autoAddSourceExpr="s/^$autoAddComment\$/testsuite_SOURCES += $sourceFileName$newLineAndComment/"
+
+autoAddComment='([[:space:]]*\/\/[[:space:]]*__AUTO_ADD_TEST_INCLUDES_HERE__.*)'
+newLineAndComment='\n\1'
+autoAddIncludeExpr="s/^$autoAddComment\$/#include \"$testHeaderFileName\"$newLineAndComment/"
+
+autoAddComment='([[:space:]]*)(\/\/[[:space:]]*__AUTO_ADD_SUITE_HERE__.*)'
+indentAndPrefix='\1runner.addTest';
+newLineAndComment='\n\2'
+autoAddTestSuiteExpr="s/^$autoAddComment\$/$indentAndPrefix($testClassName::createSuite());$newLineAndComment/"
+
+echo "autoAddSourceExpr    = $autoAddSourceExpr"
+echo "autoAddIncludeExpr   = $autoAddIncludeExpr"
+echo "autoAddTestSuiteExpr = $autoAddTestSuiteExpr"
+
+
+echo "autoAddSourceExpr    = $autoAddSourceExpr"
+echo "autoAddIncludeExpr   = $autoAddIncludeExpr"
+echo "autoAddTestSuiteExpr = $autoAddTestSuiteExpr"
+
+substituteTemplateVariables()
 {
-	cat "$sourceMakeFile" |\
-		grep -B1 "#[[:space:]]*${autoAddComment}"	|\
-		grep -E "^[[:space:]]+$REGEXP_BASE_NAME\\.$sourceExtension[[:space:]]*\$" |\
-		sed -r 's/^[[:space:]]*(([[:alnum:]]|\.)+).*$/\1/'
-}
-
-for fileExtension in $fileExtensions
-do
-	if [[ "$fileExtension" == "$headerExtension" ]]
-	then
-		targetDirectory="$headerDirectory"
-		targetFileName="$headerFileName"
-		sourceFile="$sourceTemplatesDirectory/header.hpp"
-		lastSourceFile=
-		autoAddSourceExpression=
-	else
-		targetDirectory="$sourceDirectory"
-		targetFileName="$sourceFileName"
-		sourceFile="$sourceTemplatesDirectory/source.cpp"
-		lastSourceFile=`getLastSourceFile`
-		if [[ "x" != "x$lastSourceFile" ]]
-		then
-			spaces="([[:space:]]+)";
-			lastSourceFilePastern="(`echo "$lastSourceFile" | sed -r 's/\./\\\./g'`)"
-			replacer1='\1\2 \\\n\1'
-			autoAddSourceExpression="s/^${spaces}${lastSourceFilePastern}.*\$/$replacer1$sourceFileName/"
-			echo "Auto-add: $autoAddSourceExpression"
-		else
-			echo "Skipping auto-add of source file to '$sourceMakeFile'"
-			get
-		fi
-	fi
-	targetFilePath="$targetDirectory/$targetFileName"
-
-	if test -f "$targetFilePath"
-	then
-		echo "Skipped generation of already existing file: $targetFilePath"
-		continue
-	fi
-
-	if ! mkdir -p "$targetDirectory"
-	then
-		echo "Could not create target directory '$targetDirectory'" >&2
-		exit 1
-	fi
-
-	sourceFileNameExpr=`replaceExpression "templateFileName" "$targetFileName"`
-	headerFileNameExpr=`replaceExpression "templateInclude" "$includeName"`
-
-	if cat "${sourceFile}" |\
+	cat - |\
 		sed -r "$projectNameExpr" |\
 		sed -r "$descriptionExpr" |\
 		sed -r "$headerSubDirExpr" |\
@@ -205,20 +175,96 @@ do
 		sed -r "$sourceRepositoryExpr" |\
 		sed -r "$copyRightNoticeExpr" |\
 		sed -r "$headerGuardNameExpr" |\
-		sed -r "$sourceExtensionExpr" |\
 		sed -r "$headerExtensionExpr" |\
+		sed -r "$sourceExtensionExpr" |\
+		sed -r "$classNameNameExpr" |\
+		sed -r "$testClassNameExpr" |\
 		sed -r "$sourceFileNameExpr" |\
-		sed -r "$headerFileNameExpr" \
-		> "$targetFilePath"
+		sed -r "$headerFileNameExpr" |\
+		sed -r "$testHeaderFileNameExpr"
+}
+
+generateFromTemplate()
+{
+	templateFileName="$2"
+	targetFileName="$3"
+
+	echo "Generating $1 '$targetFileName' from template '$templateFileName'"
+
+	if ! [[ -f "$templateFileName" ]]
 	then
-		echo "Generated: ${sourceFile} -> ${targetFilePath}"
-		if [[ "x" != "x$autoAddSourceExpression" ]]
-		then
-			cp "${sourceMakeFile}" "${sourceMakeFile}~"
-			cat "${sourceMakeFile}~" | sed -r "$autoAddSourceExpression" >"${sourceMakeFile}"
-		fi
-	else
-		echo "Failed to generate: ${sourceFile} -> ${targetFilePath}" >&2
+		echo "Template file does not exist: $templateFileName" >&2
 		exit 1
 	fi
-done
+	if ! mkdir -p `dirname "$targetFileName"`
+	then
+		echo "Directory for target file does not exist or could not be created: $targetFileName" >&2
+		exit 1
+	fi
+	if [[ -f "$targetFileName" ]]
+	then
+		echo "Target file already exists: $targetFileName" >&2
+		exit 1
+	fi
+	if ! cat "$templateFileName" | substituteTemplateVariables > "$targetFileName"
+	then
+		echo "Error while generating: '$templateFileName' -> '$targetFileName'" >&2
+		exit 1
+	fi
+}
+
+autoAddToFile()
+{
+	fileName="$2"
+	expr1="$3"
+	expr2="$4"
+	backupFileName="$fileName~"
+	tempFile="$backupFileName~"
+
+	echo "Adding $1 to '$fileName'"
+
+	if ! cp "$fileName" "$backupFileName"
+	then
+		echo "Could not create backup file $backupFileName"
+		exit 1
+	fi
+	errorMessage="Substitution failed"
+	if [[ "x" == "x$expr2" ]]
+	then
+		echo "Using: $expr1"
+		if cat "$backupFileName" | sed -r "$expr1" > "$tempFile"
+		then
+			errorMessage="Copying back failed"
+			if cp "$tempFile" "$fileName"
+			then
+				return 0
+			fi
+		fi
+	else
+		echo "Using: [1] $expr1"
+		echo "       [2] $expr2"
+
+		if cat "$backupFileName" | sed -r "$expr1" | sed -r "$expr2" > "$tempFile"
+		then
+			errorMessage="Copying back failed"
+			if cp "$tempFile" "$fileName"
+			then
+				return 0
+			fi
+		fi
+	fi
+	echo "Error: $errorMessage" >&2
+	exit 1
+}
+
+
+generateFromTemplate "header" "$sourceTemplatesDirectory/header.hpp" "$headerDirectory/$headerFileName"
+
+if [[ "x" != "x$generateSources" ]]
+then
+	generateFromTemplate "test suite header" "$sourceTemplatesDirectory/testheader.hpp" "$sourceDirectory/$testHeaderFileName"
+	generateFromTemplate "test suite source" "$sourceTemplatesDirectory/testsource.cpp" "$sourceDirectory/$sourceFileName"
+
+	autoAddToFile "source file" "$sourceDirectory/Makefile.am" "$autoAddSourceExpr"
+	autoAddToFile "test include and test suite" "$sourceDirectory/Main.cpp" "$autoAddIncludeExpr" "$autoAddTestSuiteExpr"
+fi

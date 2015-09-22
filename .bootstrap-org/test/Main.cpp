@@ -24,7 +24,23 @@
  * limitations under the License.
  */
 
-int main(int argumentCount, char **arguments)
+// __AUTO_ADD_TEST_INCLUDES_HERE__
+
+#include <iostream>
+#include <cppunit/TestSuite.h>
+#include <cppunit/TestCaller.h>
+#include <cppunit/TextTestRunner.h>
+
+using namespace CppUnit;
+using namespace std;
+
+int main ()
 {
-  return 0;
+	CppUnit::TextTestRunner runner;
+
+	// __AUTO_ADD_SUITE_HERE__
+
+	cout << "Starting tests!" << endl;
+
+	return runner.run() ? 0 : 1;
 }

@@ -1,5 +1,5 @@
 /*
- * __templateInclude__
+ * __templateIncludeFile__
  *
  * Part of __templateProjectName__
  * __templateProjectDescription__
@@ -25,8 +25,11 @@
 
 namespace __templateProjectNameSpace__ {
 
-// Your definitions
+class __templateClass__
+{
 
-} /* End of __templateProjectNameSpace__ */
+};
+
+} /* End of name space __templateProjectNameSpace__ */
 
 #endif /* __templateHeaderGuard__ */

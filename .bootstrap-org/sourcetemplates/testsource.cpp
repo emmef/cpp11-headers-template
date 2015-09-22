@@ -1,5 +1,5 @@
 /*
- * __templateFileName__
+ * __templateSourceFile__
  *
  * Part of __templateProjectName__
  * __templateProjectDescription__
@@ -20,8 +20,28 @@
  * limitations under the License.
  */
 
-#include <__templateInclude__>
+#include <__templateIncludeFile__>
+#include "__templateTestIncludeFile__"
 
 using namespace __templateProjectNameSpace__;
 
-// Your definitions
+void __templateTestClass__::doesCompile()
+{
+	// Nothing to implement
+}
+
+void __templateTestClass__::setUp()
+{
+	// Nothing to implement
+}
+
+void __templateTestClass__::tearDown()
+{
+	// Nothing to implement
+}
+
+__templateTestClass__::~__templateTestClass__()
+{
+	// Nothing to implement
+}
+
